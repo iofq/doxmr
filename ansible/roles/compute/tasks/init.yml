@@ -1,0 +1,45 @@
+---
+
+- name: "copy sshd config"
+  template:
+    src: templates/sshd_config
+    dest: /etc/ssh/sshd_config
+    owner: root 
+    group: root 
+    mode: '0644'
+  notify: restart sshd
+
+- name: "enable huge pages"
+  sysctl:
+    name: vm.nr_hugepages
+    value: 1280
+    state: present
+
+- name: "fetch msr script"
+  get_url:
+    url: "https://raw.githubusercontent.com/xmrig/xmrig/dev/scripts/randomx_boost.sh"
+    dest: "/tmp/randomx_boost.sh"
+    mode: "0755"
+
+- name: "enable msr"
+  shell: chdir=/tmp ./randomx_boost.sh
+
+- name: Install dependancies
+  apt:
+    name: "{{ packages }}"
+    state: present
+    update_cache: yes
+  vars:
+    packages:
+    - make
+    - git
+    - docker.io
+
+- name: Clone git repo
+  git:
+    repo: 'https://github.com/iofq/doxmr'
+    dest: /doxmr
+
+- name: Execute doxmr
+  become: true
+  shell: chdir=/doxmr make

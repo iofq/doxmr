@@ -1,0 +1,4 @@
+- name: apply compute configuration
+  hosts: compute
+  roles:
+    - compute

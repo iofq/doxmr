@@ -1,0 +1,22 @@
+# This is the sshd server system-wide configuration file.  See
+# sshd_config(5) for more information.
+
+Port 22
+ListenAddress 0.0.0.0
+ListenAddress ::
+
+PermitRootLogin yes
+MaxAuthTries 10
+
+AuthorizedKeysFile	.ssh/authorized_keys
+PasswordAuthentication no
+PermitEmptyPasswords no
+ChallengeResponseAuthentication no
+
+UsePAM yes
+X11Forwarding no
+PrintMotd no
+TCPKeepAlive yes
+UseDNS no
+
+Subsystem	sftp internal-sftp

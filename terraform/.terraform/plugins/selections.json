@@ -1,1 +1,10 @@
-{}
+{
+  "registry.terraform.io/digitalocean/digitalocean": {
+    "hash": "h1:VNz0Gte3Rmd/yhUh96FuStEXJWRYx8x2LMolm54U7Rw=",
+    "version": "1.22.2"
+  },
+  "registry.terraform.io/hashicorp/local": {
+    "hash": "h1:P3mtBQSRp/KhVLJgwdHZRTWaYsT6A9nSwrmKrRZwsW8=",
+    "version": "1.4.0"
+  }
+}
