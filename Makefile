@@ -13,6 +13,7 @@ build:
 
 run:
 	docker run -d --name $(CONTAINER) \
+		--privileged \
 		--dns 1.1.1.1 \
 		--restart unless-stopped \
 		$(IMAGE)
