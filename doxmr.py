@@ -4,6 +4,7 @@ import sys
 import os
 import requests
 import subprocess
+import time
 
 key = sys.argv[1]
 api_endpoint="https://api.digitalocean.com/v2/"
@@ -24,16 +25,22 @@ def main() :
 
     #Check if key is duplicate and append to keystore
     with open("config/keys", "a+") as api_key_file:
-        for k in api_key_file:
-            if key == k.rstrip():
+        api_key_file.seek(0)
+        for k in api_key_file.readlines():
+            if key == k.strip():
                 print("duplicate key")
                 return 1
-        api_key_file.write(key)
 
     create_ssh_key(ssh_key)
     apply_terraform(key)
+    print("Waiting for Droplets...")
+    time.sleep(15) #wait for droplets to come up
     build_inventory()
     apply_ansible()
+
+def refresh_keys():
+    with open("config/keys", "r")
+
 
 def get_ips():
     ips = []
@@ -72,11 +79,20 @@ def apply_terraform(key):
     os.chdir("terraform/")
     output = subprocess.run(["terraform", "init"])
     output = subprocess.run(["terraform", "workspace", "new", key])
+    output = subprocess.run(["terraform", "workspace", "select", key])
     output = subprocess.run(["terraform", "apply", "-var=do_api_token=" + key])
+    os.chdir(cwd)
+
+def destroy_terraform(key):
+    cwd = os.getcwd()
+    os.chdir("terraform/")
+    output = subprocess.run(["terraform", "workspace", "select", key])
+    output = subprocess.run(["terraform", "destroy", "-force", "-var=do_api_token=" + key])
     os.chdir(cwd)
 
 def build_inventory():
     with open("ansible/inventory", "a+") as inventory:
+        inventory.seek(0)
         ips = [line.strip() for line in inventory.readlines()]
         if (ips == []) or (ips[0] != '[compute]'):
             inventory.write("[compute]\n")

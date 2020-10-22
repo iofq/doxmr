@@ -7,7 +7,7 @@ variable "do_api_token" {
 }
 
 variable "compute_count" {
-  default = 2
+  default = 3
 }
 
 resource "digitalocean_tag" "compute" {
