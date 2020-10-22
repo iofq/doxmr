@@ -1,12 +1,13 @@
 # doxmr
 `sudo make`
 
-TODO:
+# TODO:
 refresh for python script (rerun terraform, ansible on all keys in file)
 store keys, droplet info and creation date locally in json rather than always querying
+weigh using terraform vs raw API calls
 xmrig proxy to control node
 computes run over vpn (openvpn)
-cpu limiting
+cpu limiting/dynamic droplet allocation
 monitoring (if destroy service didn't run, email me)
 
 destroy workflow:
