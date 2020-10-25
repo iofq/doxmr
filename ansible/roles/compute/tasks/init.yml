@@ -6,8 +6,6 @@
     update_cache: yes
   vars:
     packages:
-    - make
-    - git
     - docker.io
 
 - name: "copy sshd config"
@@ -25,12 +23,7 @@
     value: 1280
     state: present
 
-- name: Clone git repo
-  git:
-    repo: 'https://github.com/iofq/doxmr'
-    dest: /doxmr
-    update: yes
-
 - name: Execute doxmr
   become: true
-  shell: chdir=/doxmr make
+  ignore_errors: yes
+  shell: "docker rm -f xmrig; docker run --rm -d --name xmrig --privileged --dns 1.1.1.1 --restart unless-stopped iofq/docker-xmrig:latest"

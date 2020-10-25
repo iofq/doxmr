@@ -2,32 +2,35 @@
 `sudo make`
 
 # TODO:
-refresh for python script (rerun terraform, ansible on all keys in file)
-store keys, droplet info and creation date locally in json rather than always querying
-weigh using terraform vs raw API calls
-xmrig proxy to control node
+new droplets from terraform not being stored in sql
 computes run over vpn (openvpn)
-cpu limiting/dynamic droplet allocation
+cpu limiting
+xmrig proxy to control node
 monitoring (if destroy service didn't run, email me)
+make sure we are handling locked accounts, api failures
 
 destroy workflow:
-  control node has list of api keys
-  calculated expiration time based on # of droplets per account and price for droplet
-  check json list vs system time
-  destroy expiring droplets
+  each node has its own api keys from ansible template
+  calculated ttl based on # of droplets per account and price for droplet DONE
+  selfdestruct each node
 
 container:
   install terraform, ansible, python, pip
-  cronjob running destroy checks
+  use docker modules for ansible instead of shell
 
 workflow:
   `doxmr` is just a shell wrapper for docker exec commands to doxmr.py
   doxmr init:
     create the container on system with correct mounts (./data:/data)
       mounting the keys file and .tfstate files
+  doxmr add:
+    add key to config/keys
+    add ssh_key to key via api
+    run terraform and ansible
+    add to database store
   doxmr refresh:
     take list of keys, run terraform against them and ansible against the resulting droplets
-    used for adding new keys or changing terraform/ansible config
-    build new json store
+    used for adding new keys in bulk or changing terraform/ansible config
+    build new database store
   doxmr destroy:
-    parse json for droplets expiring and destroy them
+    parse database for droplets expiring and destroy them

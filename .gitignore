@@ -1,6 +1,6 @@
 **/.terraform/
 terraform.tstate.d/
-*.tfstate
+*.tfstate*
 *.tfstate.*
 crash.log
 *.tfvars
@@ -10,4 +10,6 @@ override.tf.json
 terraform.rc
 
 ansible/inventory
+*.retry
 config/keys
+config/store.db
