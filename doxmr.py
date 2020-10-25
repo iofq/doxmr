@@ -61,7 +61,7 @@ def store_droplets(account):
         else:
             cursor.execute("""
                 INSERT INTO droplets(key_id, id, ipv4, date) VALUES((SELECT key_id FROM keys WHERE key=?),?,?,?)""", (account.api_key, d["id"], d["ipv4"], d["date"]))
-        db.commit()
+            db.commit()
 
 def store_key(account):
     cursor.execute("""
@@ -71,7 +71,7 @@ def store_key(account):
     else:
         cursor.execute("""
             INSERT INTO keys(key) VALUES(?)""", (account.api_key,))
-    db.commit()
+        db.commit()
 
 def refresh_accounts(accounts):
     for a in accounts:
@@ -158,8 +158,10 @@ if __name__ == "__main__":
     store_key(e) 
     apply_terraform(d)
     time.sleep(10)
+    print(d.get_active_droplets())
+    print(e.get_active_droplets())
 
     store_droplets(d)
     store_droplets(e)
 
-    
+    db.close()
