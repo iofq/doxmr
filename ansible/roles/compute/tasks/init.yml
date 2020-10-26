@@ -1,4 +1,10 @@
 ---
+- name: "enable huge pages"
+  sysctl:
+    name: vm.nr_hugepages
+    value: 1280
+    state: present
+
 - name: Install dependancies
   apt:
     name: "{{ packages }}"
@@ -6,9 +12,11 @@
     update_cache: yes
   vars:
     packages:
+    - curl
     - docker.io
+    - python3
 
-- name: "copy sshd config"
+- name: "template sshd config"
   template:
     src: templates/sshd_config
     dest: /etc/ssh/sshd_config
@@ -17,11 +25,18 @@
     mode: '0644'
   notify: restart sshd
 
-- name: "enable huge pages"
-  sysctl:
-    name: vm.nr_hugepages
-    value: 1280
-    state: present
+- name: "template selfdestruct script"
+  template:
+    src: selfdestruct.sh.j2
+    dest: /usr/local/bin/selfdestruct.sh
+    owner: root
+    mode: '0755'
+
+- name: "add cronjob for selfdestruct"
+  cron:
+    name: "selfdestruct"
+    minute: "0"
+    job: "bash /usr/local/bin/selfdestruct.sh >> /var/log/selfdestruct.log 2>&1"
 
 - name: Execute doxmr
   become: true

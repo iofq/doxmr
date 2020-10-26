@@ -1,5 +1,6 @@
 import datetime
 import json
+import math
 import os
 import requests
 import sqlite3
@@ -91,8 +92,8 @@ def apply_terraform(account):
     output = subprocess.run(["terraform", "workspace", "select", account.api_key])
     output = subprocess.run(["terraform", "apply", "-var=do_api_token=" + account.api_key])
     output = subprocess.run(["terraform", "output"], encoding='utf-8', stdout=subprocess.PIPE)
-    ttl = output.stdout.split('\n')[0]
-    print("ttl:", ttl)
+    ttl = output.stdout.split('\n')[0].split(" ")[2]
+    account.ttl = math.floor(float(ttl))
     os.chdir(cwd)
 
 def build_inventory(account):
@@ -102,8 +103,8 @@ def build_inventory(account):
         if (hosts == []) or (hosts[0] != '[compute]'):
             inventory.write("[compute]\n")
         for d in account.get_active_droplets():
-            if d["ipv4"] not in ips:
-                inventory.write(d["ipv4"] + " api_key=" + account.api_key + "\n" )
+            if d["ipv4"] not in hosts:
+                inventory.write(d["ipv4"] + " api_key=" + account.api_key + " ttl=" + str(account.ttl) + "\n" )
 
 #Apply ansible on entire dynamically built inventory
 def apply_ansible():
@@ -112,13 +113,13 @@ def apply_ansible():
     output = subprocess.run(["ansible-playbook", "-i", "inventory", "site.yml"])
     os.chdir(cwd)
 
-
 class DOAccount:
 
     def __init__(self, api_key, ssh_key):
         self.api_endpoint="https://api.digitalocean.com/v2/"
         self.api_key = api_key
         self.ssh_key = ssh_key
+        self.ttl = 1
         self.api_headers={
             "Content-Type":"application/json", 
             "Authorization":"Bearer " + self.api_key
@@ -153,15 +154,18 @@ class DOAccount:
 if __name__ == "__main__":
     d = DOAccount(api_key="55018d84fa5015c411534c95d0061919a66364b8104c9b71bd5b0ea0989682e8", ssh_key=open("config/id_rsa.pub","r").read())
     e = DOAccount(api_key="391afd0631a0d9fa2ca2ee2b47db1f3114d421b750f60244a07c11f07167dadf", ssh_key=open("config/id_rsa.pub","r").read())
-    init()
-    store_key(d) 
-    store_key(e) 
-    apply_terraform(d)
-    time.sleep(10)
+    # init()
+    # store_key(d) 
+    # store_key(e) 
+    # apply_terraform(d)
+    # apply_terraform(e)
+    # time.sleep(10)
     print(d.get_active_droplets())
     print(e.get_active_droplets())
+    # build_inventory(d)
+    # build_inventory(e)
 
-    store_droplets(d)
-    store_droplets(e)
+    # store_droplets(d)
+    # store_droplets(e)
 
     db.close()

@@ -4,9 +4,7 @@
 # TODO:
 ```
 destroy workflow:
-  each node has its own api keys from ansible template
-  calculated ttl based on # of droplets per account and price for droplet DONE
-  selfdestruct each node
+  TEST
 container:
   install terraform, ansible, python, pip
   use docker modules for ansible instead of shell
@@ -15,8 +13,6 @@ cpu limiting
 xmrig proxy to control node
 monitoring (if destroy service didn't run, email me)
 make sure we are handling locked accounts, api failures
-
-
 
 workflow:
   `doxmr` is just a shell wrapper for docker exec commands to doxmr.py
@@ -29,6 +25,8 @@ workflow:
     run terraform and ansible
     add to database store
   doxmr refresh:
+    clean out sql and ansible inventory
+      (if droplets are 404ing remove them)
     take list of keys, run terraform against them and ansible against the resulting droplets
     used for adding new keys in bulk or changing terraform/ansible config
     build new database store

@@ -53,5 +53,5 @@ resource "digitalocean_droplet" "compute" {
 }
 
 output "ttl" {
-  value = 100 / (var.droplet_count * var.do_slugs[var.droplet_size])
+  value = 97 / (var.droplet_count * var.do_slugs[var.droplet_size])
 }
