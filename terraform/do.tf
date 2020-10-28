@@ -34,7 +34,19 @@ variable "droplet_size" {
   default = "s-4vcpu-8gb"
 }
 
+variable "droplet_image" {
+  default = "debian-10-x64"
+}
+
+variable "droplet_region" {
+  default = "sfo3"
+}
+
 variable "do_api_token" {
+  default = ""
+}
+
+variable "do_ssh_key" {
   default = ""
 }
 
@@ -45,10 +57,10 @@ resource "digitalocean_tag" "compute" {
 resource "digitalocean_droplet" "compute" {
   count = var.droplet_count
   name = "compute${count.index}"
-  image = "debian-10-x64"
-  region = "sfo3"
+  image = var.droplet_image
+  region = var.droplet_region
   size = var.droplet_size
-  ssh_keys = ["2c:47:58:6e:26:fd:94:c5:a3:62:89:49:72:ef:a3:50"]
+  ssh_keys = [var.do_ssh_key]
   tags = [digitalocean_tag.compute.name]
 }
 

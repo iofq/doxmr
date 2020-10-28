@@ -1,4 +1,6 @@
+import base64
 import datetime
+import hashlib
 import json
 import math
 import os
@@ -8,7 +10,8 @@ import subprocess
 import sys
 import time
 
-database_location = 'config/store.db'
+database_location = "config/store.db"
+ssh_key_location = "config/id_rsa.pub"
 try:
     db = sqlite3.connect(database_location)
     cursor = db.cursor()
@@ -90,7 +93,7 @@ def apply_terraform(account):
     output = subprocess.run(["terraform", "init"])
     output = subprocess.run(["terraform", "workspace", "new", account.api_key])
     output = subprocess.run(["terraform", "workspace", "select", account.api_key])
-    output = subprocess.run(["terraform", "apply", "-var=do_api_token=" + account.api_key])
+    output = subprocess.run(["terraform", "apply", "-auto-approve", "-var=do_api_token=" + account.api_key, "-var=do_ssh_key=" + account.ssh_key_fingerprint])
     output = subprocess.run(["terraform", "output"], encoding='utf-8', stdout=subprocess.PIPE)
     ttl = output.stdout.split('\n')[0].split(" ")[2]
     account.ttl = math.floor(float(ttl))
@@ -99,7 +102,7 @@ def apply_terraform(account):
 def build_inventory(account):
     with open("ansible/inventory", "a+") as inventory:
         inventory.seek(0)
-        hosts = [line.strip() for line in inventory.readlines()]
+        hosts = [line.strip().split(" ")[0] for line in inventory.readlines()]
         if (hosts == []) or (hosts[0] != '[compute]'):
             inventory.write("[compute]\n")
         for d in account.get_active_droplets():
@@ -119,18 +122,26 @@ class DOAccount:
         self.api_endpoint="https://api.digitalocean.com/v2/"
         self.api_key = api_key
         self.ssh_key = ssh_key
+        self.ssh_key_fingerprint = self.md5_fingerprint(ssh_key)
         self.ttl = 1
         self.api_headers={
             "Content-Type":"application/json", 
             "Authorization":"Bearer " + self.api_key
         }
 
+    @staticmethod
+    def md5_fingerprint(key):
+         key = base64.b64decode(key.strip().split()[1].encode('ascii'))
+         fp_plain = hashlib.md5(key).hexdigest()
+         return ':'.join(a+b for a,b in zip(fp_plain[::2], fp_plain[1::2]))
+
     def create_ssh_key(self):
         r = requests.post(self.api_endpoint + "account/keys", headers=self.api_headers, data=json.dumps({ "name":"key","public_key": self.ssh_key}))
         try:
-            print("ssh fingerprint: ", str(json.loads(r.text)['ssh_key']['fingerprint']))
+            fingerprint = str(json.loads(r.text)['ssh_key']['fingerprint'])
+            print("ssh fingerprint: ", fingerprint)
         except:
-            print("ssh key (probably) already exists")
+            print("ssh key already exists: ")
 
     def get_ip(self, id):
         ips = []
@@ -147,25 +158,23 @@ class DOAccount:
             droplets.append({"id": d['id'], "ipv4": self.get_ip(d['id']), "date": str(datetime.datetime.strptime(str(d['created_at']), "%Y-%m-%dT%H:%M:%SZ"))})
         return droplets
 
-    def to_json(self):
-        return { self.api_key: self.get_active_droplets() }
-                        
 
 if __name__ == "__main__":
     d = DOAccount(api_key="55018d84fa5015c411534c95d0061919a66364b8104c9b71bd5b0ea0989682e8", ssh_key=open("config/id_rsa.pub","r").read())
     e = DOAccount(api_key="391afd0631a0d9fa2ca2ee2b47db1f3114d421b750f60244a07c11f07167dadf", ssh_key=open("config/id_rsa.pub","r").read())
-    # init()
-    # store_key(d) 
-    # store_key(e) 
-    # apply_terraform(d)
-    # apply_terraform(e)
-    # time.sleep(10)
+    init()
+    store_key(d) 
+    store_key(e) 
+    d.create_ssh_key()
+    e.create_ssh_key()
+    apply_terraform(d)
+    apply_terraform(e)
+    time.sleep(10)
     print(d.get_active_droplets())
     print(e.get_active_droplets())
-    # build_inventory(d)
-    # build_inventory(e)
-
-    # store_droplets(d)
-    # store_droplets(e)
-
+    build_inventory(d)
+    build_inventory(e)
+    apply_ansible()
+    store_droplets(d)
+    store_droplets(e)
     db.close()

@@ -9,7 +9,8 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-ansible/inventory
 *.retry
-config/keys
+ansible/inventory
 config/store.db
+config/id_rsa.pub
+config/id_rsa

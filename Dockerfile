@@ -1,8 +1,15 @@
-FROM debian:latest
-ARG DEBIAN_FRONTEND=noninteractive
+FROM alpine:latest
+ENV TERRAFORM_VERSION=0.13.5
 
-RUN apt-get -y update && apt-get -y install ansible python3 python3-pip curl
-RUN curl -fsSL https://apt.releases.hashicorp.com/gpg | apt-key add - && \
-  apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main" && \
-  apt-get -y update && apt-get -y install terraform
+RUN apk --no-cache update && apk add --no-cache openssh-client ansible py3-pip python3 wget unzip && \
+  pip3 install requests && \
+  wget https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip && \
+  unzip terraform_${TERRAFORM_VERSION}_linux_amd64.zip && \
+  cp terraform /usr/local/bin/ && \
+  rm terraform*
 
+VOLUME /app
+WORKDIR /app
+
+ENTRYPOINT ["python3"]
+CMD ["doxmr.py"]

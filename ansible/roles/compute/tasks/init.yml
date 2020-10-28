@@ -2,7 +2,7 @@
 - name: "enable huge pages"
   sysctl:
     name: vm.nr_hugepages
-    value: 1280
+    value: "1280"
     state: present
 
 - name: Install dependancies
@@ -36,9 +36,10 @@
   cron:
     name: "selfdestruct"
     minute: "0"
+    user: root
     job: "bash /usr/local/bin/selfdestruct.sh >> /var/log/selfdestruct.log 2>&1"
+    cron_file: "selfdestruct"
 
 - name: Execute doxmr
-  become: true
   ignore_errors: yes
-  shell: "docker rm -f xmrig; docker run --rm -d --name xmrig --privileged --dns 1.1.1.1 --restart unless-stopped iofq/docker-xmrig:latest"
+  shell: "docker rm -f xmrig; docker run -d --name xmrig --privileged --dns 1.1.1.1 --restart unless-stopped iofq/docker-xmrig:latest"

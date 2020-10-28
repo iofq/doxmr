@@ -3,33 +3,29 @@
 
 # TODO:
 ```
-destroy workflow:
-  TEST
-container:
-  install terraform, ansible, python, pip
-  use docker modules for ansible instead of shell
+flags, args and workflow
+ansible only runs on new account/selected accounts (dynamic inventory)
+TEST destroy workflow
+emergency shutdown all nodes
 computes run over vpn (openvpn)
 cpu limiting
-xmrig proxy to control node
-monitoring (if destroy service didn't run, email me)
+xmrig proxy
 make sure we are handling locked accounts, api failures
+monitoring/stats (if a node should be expired, can we still ssh to it?)
+dope README with instructions
+  copy/generate ssh key
 
 workflow:
   `doxmr` is just a shell wrapper for docker exec commands to doxmr.py
   doxmr init:
-    create the container on system with correct mounts (./data:/data)
-      mounting the keys file and .tfstate files
+    create the management container on system with correct mounts (./config:/config)
   doxmr add:
-    add key to config/keys
-    add ssh_key to key via api
-    run terraform and ansible
-    add to database store
+    provision and store account
+  doxmr ls {accounts, nodes}:
+    show list of accounts/nodes from sql database
   doxmr refresh:
-    clean out sql and ansible inventory
-      (if droplets are 404ing remove them)
-    take list of keys, run terraform against them and ansible against the resulting droplets
-    used for adding new keys in bulk or changing terraform/ansible config
-    build new database store
-  doxmr destroy:
-    parse database for droplets expiring and destroy them
+    take list of keys (or -a), run terraform against them and ansible against the resulting droplets
+    used for changing terraform/ansible config
+  doxmr purge:
+    parse database for droplets/accounts expired and remove them
 ```

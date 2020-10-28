@@ -12,10 +12,9 @@ build:
 	docker build . -t $(IMAGE)
 
 run:
-	docker run -d --name $(CONTAINER) \
-		--privileged \
+	docker run --rm -it --name $(CONTAINER) \
 		--dns 1.1.1.1 \
-		--restart unless-stopped \
+		-v $(shell pwd):/app \
 		$(IMAGE)
 
 exec:
