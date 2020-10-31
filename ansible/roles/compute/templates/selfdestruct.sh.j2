@@ -1,6 +1,6 @@
 #!/bin/bash
 
-id=$(curl http://169.254.169.254/metadata/v1/id)
+id=$(curl -s http://169.254.169.254/metadata/v1/id)
 api_key="{{ api_key }}"
 ttl="{{ ttl }}"
 
@@ -9,7 +9,7 @@ creation_time=$(date -d "$time" +%s)
 uptime=$(python -c "print(($(date +%s) - $creation_time) / 3600)")
 
 
-if (( $uptime > $ttl )); then
+if (( $uptime >= $ttl )); then
   echo "self-destruct starting!"
   status_code=0
   while [[ $status_code != "204" ]]; do
