@@ -10,8 +10,8 @@ import sys
 import time
 import requests
 
-DATABASE_LOCATION = "config/store.db"
-SSH_KEY_LOCATION = "config/id_rsa.pub"
+DATABASE_LOCATION = "data/store.db"
+SSH_KEY_LOCATION = "data/id_rsa.pub"
 os.environ["TF_IN_AUTOMATION"] = "true"
 
 try:
@@ -21,7 +21,7 @@ except sqlite3.Error:
     print("Error accessing sqlite3 database ", DATABASE_LOCATION)
     sys.exit(1)
 try:
-    ssh_key = open("config/id_rsa.pub", "r").read()
+    ssh_key = open(SSH_KEY_LOCATION, "r").read()
 except FileNotFoundError:
     print("Error accessing ssh key ", SSH_KEY_LOCATION)
 
