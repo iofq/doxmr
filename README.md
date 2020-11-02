@@ -1,16 +1,11 @@
 # doxmr
-`sudo make`
+`./doxmr`
 
 # TODO:
 ```
-status api check
-make sure we are handling locked accounts, api failures (check response code everytime?)
-computes run over vpn (openvpn)
-xmrig proxy
-cpu limiting
-compile binary in xmrig container
-TEST destroy workflow (seems good thus far but it reallly cant fail)
+computes run over vpn (openvpn or just an ssh tunnel maybe?)
+TEST destroy workflow (seems solid thus far but it realllllly cant fail)
 look at optimizaions, running terraform in parallel, purge and ls can be faster?
-dope README
+cheeky README
 
 ```

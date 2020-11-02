@@ -3,9 +3,7 @@
 id=$(curl -s http://169.254.169.254/metadata/v1/id)
 api_key="{{ api_key }}"
 ttl="{{ ttl }}"
-
-time=$(curl -s -X GET -H "Content-Type: application/json" -H "Authorization: Bearer $api_key" "https://api.digitalocean.com/v2/droplets/$id" | python3 -c "import sys, json; print(json.load(sys.stdin)['droplet']['created_at'])")
-creation_time=$(date -d "$time" +%s)
+creation_time="{{ date }}"
 uptime=$(python -c "print(($(date +%s) - $creation_time) / 3600)")
 
 

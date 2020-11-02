@@ -3,7 +3,7 @@
 CONTAINER="doxmr"
 IMAGE="doxmr"
 CMD="python3 doxmr.py"
-SSH_KEY="config/key"
+SSH_KEY="config/id_rsa"
 
 #gen ssh keys if not exists
 [[ -f $SSH_KEY ]] || \
