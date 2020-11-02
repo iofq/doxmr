@@ -3,9 +3,10 @@
 CONTAINER="doxmr"
 IMAGE="doxmr"
 CMD="python3 doxmr.py"
-SSH_KEY="config/id_rsa"
+SSH_KEY="data/id_rsa"
 
 #gen ssh keys if not exists
+mkdir -p data/
 [[ -f $SSH_KEY ]] || \
   ssh-keygen -t rsa -b 4096 -f $SSH_KEY -q -N ""
 

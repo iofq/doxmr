@@ -11,5 +11,5 @@ terraform.rc
 
 *.retry
 ansible/inventory
-config/store.db
-config/id_rsa*
+data/store.db
+data/id_rsa*
