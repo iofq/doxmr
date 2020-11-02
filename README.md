@@ -4,10 +4,10 @@
   - just docker!
 
 If you're insane and want to run this outside of a container, you'll need:
-  > `terraform >= 0.13`
-  > `ansible >= 2.7`
-  > `python3.*`
-  > python `requests` module (`pip install requests`)
+  - `terraform >= 0.13`
+  - `ansible >= 2.7`
+  - `python3.*`
+  - python `requests` module (`pip install requests`)
 
 ## Usage:
 `./doxmr`
