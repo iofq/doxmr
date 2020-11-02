@@ -178,15 +178,11 @@ def apply_terraform(account):
     os.chdir(cwd)
 
 def build_inventory(accounts):
-    with open("ansible/inventory", "a+") as inventory:
-        inventory.seek(0)
-        hosts = [line.strip().split(" ")[0] for line in inventory.readlines()]
-        if (hosts == []) or (hosts[0] != '[compute]'):
-            inventory.write("[compute]\n")
+    with open("ansible/inventory", "w+") as inventory:
+        inventory.write("[compute]\n")
         for a in accounts:
             for d in a.get_active_droplets():
-                if d["ipv4"] not in hosts:
-                    inventory.write(d["ipv4"] + " api_key=" + a.api_key + " ttl=" + str(a.ttl) + " date=" + d["date"] + "\n" )
+                inventory.write(d["ipv4"] + " api_key=" + a.api_key + " ttl=" + str(a.ttl) + " date=" + d["date"] + "\n" )
 
 def apply_ansible():
     cwd = os.getcwd()
@@ -264,12 +260,9 @@ def prune():
         print_green("\n (Only 'yes' will be accepted as confirmation): ")
         answer = input("")
         if answer == "yes":
-            for e in expired:
+            for e in expired + unreachable:
                 cursor.execute("""
                     DELETE FROM droplets WHERE id=?""", (e[0],))
-            for u in unreachable:
-                cursor.execute("""
-                    DELETE FROM droplets WHERE id=?""", (u[0],))
             for a in accounts:
                 cursor.execute("""
                     DELETE FROM keys WHERE key=?""", (a,))
@@ -298,7 +291,7 @@ def shutdown():
                 r = requests.delete(DOAccount("").api_endpoint + "droplets" + "?tag_name=doxmr", headers=api_headers)
                 status_code = r.status_code
                 if status_code == 204:
-                    print_red("Account shutdown: " + k[0])
+                    print_red("Account shutdown: {}\n".format(k[0]))
 
 class DOAccount:
 
