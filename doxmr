@@ -1,0 +1,20 @@
+#!/bin/bash
+
+CONTAINER="doxmr"
+IMAGE="doxmr"
+CMD="python3 doxmr.py"
+SSH_KEY="config/key"
+
+#gen ssh keys if not exists
+[[ -f $SSH_KEY ]] || \
+  ssh-keygen -t rsa -b 4096 -f $SSH_KEY -q -N ""
+
+#build container if not exists
+sudo docker inspect doxmr > /dev/null 2>&1 || \
+  sudo docker build -t doxmr .
+
+#mount cwd and pass args to docker
+sudo docker run --rm -it --name $CONTAINER \
+  --dns 1.1.1.1 \
+  -v $(pwd):/app \
+  $IMAGE $CMD "$@"

@@ -34,15 +34,21 @@ def printCyan(string): print("\033[96m {}\033[00m".format(string), end="")
 def printLightGray(string): print("\033[97m {}\033[00m".format(string), end="") 
 def printBlack(string): print("\033[98m {}\033[00m".format(string), end="") 
 
-def init_db():
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS keys(key_id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL)
-    """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS droplets(key_id INTEGER NOT NULL, id TEXT, ipv4 TEXT, date TEXT, ttl INTEGER)
-    """)
-    db.commit()
+def help():
+    printLightPurple("\n doxmr: create and provision droplets on DigitalOcean\n")
+    print("-------------------------------------\n")
+    printGreen("doxmr init\n")
+    print(" -- creates management Docker container, mounts the current directory\n")
+    printGreen("doxmr add <api_key> <api_key>...\n")
+    print(" --  append key(s) to database, provision droplets according to config")
+    print(" --  in terraform/do.tf and ansible/site.yml.\n")
+    printPurple("doxmr ls\n")
+    print(" -- prints a formatted list of stored keys and droplets\n")
+    printPurple("doxmr refresh <api_key>...\n")
+    print(" -- reruns terraform and ansible on all keys (or <api_keys>)\n")
+    printRed("doxmr purge\n")
+    print(" -- find, remove expired & unreachable keys/droplets from database. ")
+    print(" -- be careful, lost keys are a pain to recover. \n")
 
 def main():
 
@@ -55,7 +61,7 @@ def main():
     if command == "add":
         keys = sys.argv[2:]
         if not keys:
-            print("print help for add") #TODO
+            help()
             return 1
         else:
             accounts = []
@@ -95,26 +101,23 @@ def main():
                 provision(accounts)
     elif command == "purge":
         purge()
-    elif command == "shutdown": #TODO
-        pass
+    elif command == "shutdown":
+        shutdown()
     else:
         help()
 
+    db.commit()
     db.close()
 
-def help():
-    printLightPurple("\n doxmr: create and provision droplets on DigitalOcean\n")
-    print("-------------------------------------\n")
-    printGreen("doxmr init")
-    print("-- creates management Docker container, mounting the current directory\n")
-    printGreen("doxmr add <api_key>")
-    print("--  append new key to database, provision droplets accoring to config\n")
-    printPurple("doxmr ls")
-    print("-- prints a JSON formatted list of stored api keys and droplets\n")
-    printPurple("doxmr refresh <api_key>")
-    print("-- re-runs terraform and ansible on all keys (or <api_key>)\n")
-    printRed("doxmr purge")
-    print("-- find and remove expired droplets and keys from local database\n")
+def init_db():
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS keys(key_id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL)
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS droplets(key_id INTEGER NOT NULL, id TEXT, ipv4 TEXT, date TEXT, ttl INTEGER)
+    """)
+    db.commit()
         
 def store_droplets(account):
     droplets = account.get_active_droplets()
@@ -144,11 +147,11 @@ def provision(accounts):
        apply_terraform(a) 
     print("Waiting for Droplets...")
     time.sleep(15)
-    for a in accounts:
-        build_inventory(a)
+    build_inventory(accounts)
     apply_ansible()
     for a in accounts:
         store_droplets(a)
+    os.remove("ansible/inventory")
 
 def apply_terraform(account):
     cwd = os.getcwd()
@@ -162,16 +165,16 @@ def apply_terraform(account):
     account.ttl = math.floor(float(ttl))
     os.chdir(cwd)
 
-#TODO build inventory from array of accounts
-def build_inventory(account):
+def build_inventory(accounts):
     with open("ansible/inventory", "a+") as inventory:
         inventory.seek(0)
         hosts = [line.strip().split(" ")[0] for line in inventory.readlines()]
         if (hosts == []) or (hosts[0] != '[compute]'):
             inventory.write("[compute]\n")
-        for d in account.get_active_droplets():
-            if d["ipv4"] not in hosts:
-                inventory.write(d["ipv4"] + " api_key=" + account.api_key + " ttl=" + str(account.ttl) + "\n" )
+        for a in accounts:
+            for d in a.get_active_droplets():
+                if d["ipv4"] not in hosts:
+                    inventory.write(d["ipv4"] + " api_key=" + a.api_key + " ttl=" + str(a.ttl) + "\n" )
 
 def apply_ansible():
     cwd = os.getcwd()
@@ -187,11 +190,11 @@ def ls():
         cursor.execute("""
             SELECT * FROM droplets WHERE key_id=(SELECT key_id FROM keys WHERE key=?);""", (i[0],))
         status = DOAccount(api_key=i[0]).get_status()
-        printGreen("email: {}  status: {}  ratelimit: {}\n".format(status[0], status[1], status[2]))
+        balance = DOAccount(api_key=i[0]).get_balance()
+        printGreen("email: {}  status: {}  ratelimit: {} balance: {}\n".format(status[0], status[1], status[2], balance))
         printPurple(i[0] + "\n")
         for d in cursor.fetchall():
             time_left = math.floor((math.floor(float(d[3])) + int(d[4]) * 3600) - time.time()) / 3600
-            # print("    id={} ip={} with {} hours left".format(d[1],d[2], int(time_left)))
             pad = (16 - len(str(d[2]))) * " "
             printCyan("    id=")
             print(d[1], end="")
@@ -199,6 +202,7 @@ def ls():
             print(d[2].ljust(16, " "), end="")
             print("     with\033[96m {}\033[00m hours left.".format(int(time_left)))
         print()
+
 def purge():
     printGreen("Looking for expired resources...\n")
     cursor.execute("""
@@ -241,12 +245,12 @@ def purge():
         for u in unreachable:
             print("\t{}, {}".format(u[0], u[1]))
     if accounts != []:
-        printRed("\tPurging these empty accounts:\n")
+        printRed("Purging these empty accounts:\n")
         for a in accounts:
-            print("{}".format(a))
+            print("\t{}".format(a))
     if not (expired == unreachable == accounts == []):
         printGreen("Does this look correct?")
-        printGreen("\n (Only 'yes' will be accepted as confirmation):")
+        printGreen("\n (Only 'yes' will be accepted as confirmation): ")
         answer = input("")
         if answer == "yes":
             for e in expired:
@@ -258,10 +262,32 @@ def purge():
             for a in accounts:
                 cursor.execute("""
                     DELETE FROM keys WHERE key=?""", (a,))
+                output = subprocess.run(["terraform", "workspace", "delete", a])
             printGreen("Done purging.\n")
     else:
         printRed("Nothing found to purge.\n")
     db.commit()
+
+def shutdown():
+    printRed("Destroy all droplets for all keys???\n")
+    printRed("(Only 'yes' will be accepted as confirmation): ")
+    answer = input("")
+    if answer == "yes":
+        cursor.execute("""
+            SELECT key FROM keys;
+        """)
+        keys = cursor.fetchall()
+        for k in keys:
+            api_headers={
+                "Content-Type":"application/json", 
+                "Authorization":"Bearer " + k[0]
+            }
+            status_code = 0
+            while status_code != 204:
+                r = requests.delete(DOAccount("").api_endpoint + "droplets" + "?tag_name=doxmr", headers=api_headers)
+                status_code = int(r.status_code)
+                if status_code == 204:
+                    printRed("Account shutdown: ", k[0])
 
 class DOAccount:
 
@@ -291,11 +317,6 @@ class DOAccount:
         except:
             print("ssh key already exists!")
 
-    def get_status(self):
-        r = requests.get(self.api_endpoint + "account/", headers=self.api_headers)
-        body = json.loads(r.text)["account"]
-        return [body["email"], body["status"], r.headers["Ratelimit-Remaining"]]
-
     def get_droplet(self, id):
         r = requests.get(self.api_endpoint + "droplets/" + str(id), headers=self.api_headers)
         return json.loads(r.text)
@@ -305,6 +326,17 @@ class DOAccount:
         for i,_ in enumerate(network):
             if str(network[i]['type']) == 'public':
                 return str(network[i]['ip_address'])
+
+    #return [email, status, ratelimit]
+    def get_status(self):
+        r = requests.get(self.api_endpoint + "account/", headers=self.api_headers)
+        body = json.loads(r.text)["account"]
+        return [body["email"], body["status"], r.headers["Ratelimit-Remaining"]]
+
+    def get_balance(self):
+        r = requests.get(self.api_endpoint + "customers/my/balance", headers=self.api_headers)
+        body = json.loads(r.text)
+        return abs(float(body["month_to_date_balance"]))
 
     #return {"id": id, "ipv4": 0.0.0.0, "date": unix_time}
     def get_active_droplets(self):
