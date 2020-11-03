@@ -45,8 +45,6 @@ def print_black(string):
 def usage():
     print_light_purple("\n doxmr: create and provision droplets on DigitalOcean\n")
     print("-------------------------------------\n")
-    print_green("doxmr init\n")
-    print(" -- creates management Docker container, mounts the current directory\n")
     print_green("doxmr add <api_key> <api_key>...\n")
     print(" --  append key(s) to database, provision droplets according to config")
     print(" --  in terraform/do.tf and ansible/site.yml.\n")
@@ -69,7 +67,7 @@ def main():
     try:
         command = sys.argv[1]
     except IndexError:
-        command = "help"
+        command = "usage"
 
     init_db()
     if command == "add":
