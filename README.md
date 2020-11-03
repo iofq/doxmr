@@ -11,7 +11,9 @@ If you're insane and want to run this outside of a container, you'll need:
 
 ## Usage:
 Edit ansible/roles/compute/tasks/init.yml to run your xmrig container/config file
+
 Edit terraform/do.tf if you'd like to make changes to the default config (2x 4Vcpu droplets in SFO3)
+
 `./doxmr add <api_key>`
 
 ## TODO:

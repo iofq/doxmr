@@ -155,8 +155,9 @@ def provision(accounts):
     for a in accounts:
         a.create_ssh_key()
         apply_terraform(a)
-    print("Waiting for Droplets...")
-    time.sleep(15)
+    if a != []:
+        print("Waiting for Droplets...")
+        time.sleep(15)
     build_inventory(accounts)
     apply_ansible()
     for a in accounts:
@@ -264,7 +265,7 @@ def prune():
             for a in accounts:
                 cursor.execute("""
                     DELETE FROM keys WHERE key=?""", (a,))
-                subprocess.run(["terraform", "workspace", "delete", a], check=True)
+                subprocess.run(["terraform", "workspace", "delete", a], check=False)
             print_green("Done.\n")
     else:
         print_red("Nothing found to prune.\n")
