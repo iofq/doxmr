@@ -11,8 +11,8 @@ mkdir -p data/
   ssh-keygen -t rsa -b 4096 -f $SSH_KEY -q -N ""
 
 #build container if not exists
-sudo docker inspect doxmr > /dev/null 2>&1 || \
-  sudo docker build -t doxmr .
+sudo docker inspect $IMAGE > /dev/null 2>&1 || \
+  sudo docker build -t $IMAGE .
 
 #mount cwd and pass args to docker
 sudo docker run --rm -it --name $CONTAINER \

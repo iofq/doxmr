@@ -31,15 +31,16 @@ variable "droplet_count" {
 }
 
 variable "droplet_size" {
-  default = "s-4vcpu-8gb"
+  default = "s-2vcpu-2gb"
 }
 
 variable "droplet_image" {
   default = "debian-10-x64"
 }
 
+/* If you change this, change the region variable in the create_vpc() method in doxmr.py */
 variable "droplet_region" {
-  default = "sfo3"
+  default = "sfo2"
 }
 
 variable "do_api_token" {

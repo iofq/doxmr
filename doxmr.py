@@ -50,24 +50,30 @@ def usage():
     print(" --  in terraform/do.tf and ansible/site.yml.\n")
     print_purple("doxmr ls\n")
     print(" -- prints a formatted list of stored keys and droplets\n")
-    print_purple("doxmr refresh <api_key>...\n")
+    print_purple("doxmr refresh (all, <api_key>...)\n")
     print(" -- reruns terraform and ansible on all keys (or <api_keys>)\n")
-    print_red("doxmr prune\n")
+    print_red("doxmr prune (all, <api_key>...)\n")
     print(" -- find, remove expired & unreachable keys/droplets from database. ")
     print(" -- be careful, lost keys are a pain to recover. \n")
+    print_red("doxmr shutdown (all, <api_key>...)\n")
+    print(" -- emergency shutdown, removes all droplets from (all) keys")
+    sys.exit(0)
 
 def main():
 
-    r = requests.get("https://s2k7tnzlhrpw.statuspage.io/api/v2/components.json")
-    body = json.loads(r.text)
-    for b in body["components"]:
-        if b["name"] == "API":
-            print_yellow("DigitalOcean API status: {}\n".format(b["status"]))
+    try:
+        r = requests.get("https://s2k7tnzlhrpw.statuspage.io/api/v2/components.json")
+        body = json.loads(r.text)
+        for b in body["components"]:
+            if b["name"] == "API":
+                print_yellow("DigitalOcean API status: {}\n".format(b["status"]))
+    except KeyError:
+        print("Error reaching API. More likely your network is down than theirs :)")
 
     try:
         command = sys.argv[1]
     except IndexError:
-        command = "usage"
+        usage()
 
     init_db()
     if command == "add":
@@ -82,9 +88,15 @@ def main():
                     continue
                 a = DOAccount(api_key=k, ssh_key=ssh_key)
                 if store_key(a):
-                    print("ignoring duplicate key")
+                    print("ignoring duplicate key ", k)
                 else:
                     accounts.append(a)
+            for a in accounts:
+                a.create_vpc()
+            for a in accounts:
+                a.create_ssh_key()
+            print_purple("Waiting for VPCs...\n")
+            time.sleep(15)
             provision(accounts)
     elif command == "ls":
         ls()
@@ -93,27 +105,52 @@ def main():
         if not keys:
             usage()
         else:
+            accounts = []
             if keys[0] == "all":
                 cursor.execute("""
                     SELECT key FROM keys;
                 """)
-                accounts = []
                 for k in cursor.fetchall():
                     accounts.append(DOAccount(api_key=k[0], ssh_key=ssh_key))
-                provision(accounts)
-
             else:
-                accounts = []
                 for k in keys:
                     if not len(k) == 64:
                         print("invalid key: ", k)
                         sys.exit(1)
-                    accounts.append(DOAccount(api_key=k[0], ssh_key=ssh_key))
-                provision(accounts)
+                    accounts.append(DOAccount(api_key=k, ssh_key=ssh_key))
+            provision(accounts)
+            prune(prune_keys=False)
     elif command == "prune":
-        prune()
+        keys = sys.argv[2:]
+        if not keys:
+            usage()
+        if keys[0] == "all":
+            prune(prune_keys=True)
+        else:
+            for k in keys:
+                cursor.execute("""
+                    DELETE FROM keys WHERE key=?""", (a,))
+                subprocess.run(["terraform", "workspace", "delete", a], check=False)
     elif command == "shutdown":
-        shutdown()
+        keys = sys.argv[2:]
+        if not keys:
+            usage()
+        if keys[0] == "all":
+            print_red("Destroy all droplets for all keys???\n")
+            print_red("(Only 'yes' will be accepted as confirmation): ")
+            answer = input("")
+            if answer == "yes":
+                cursor.execute("""
+                    SELECT key FROM keys;
+                """)
+                keys = cursor.fetchall()
+        else:
+            l = []
+            for k in keys:
+                l.append([k])
+            keys = l
+        shutdown(keys)
+        prune(prune_keys=False)
     else:
         usage()
 
@@ -128,7 +165,6 @@ def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS droplets(key_id INTEGER NOT NULL, id TEXT, ipv4 TEXT, date TEXT, ttl INTEGER)
     """)
-    db.commit()
 
 def store_droplets(account):
     droplets = account.get_active_droplets()
@@ -138,40 +174,43 @@ def store_droplets(account):
         if not cursor.fetchall():
             cursor.execute("""
                 INSERT INTO droplets(key_id, id, ipv4, date, ttl) VALUES((SELECT key_id FROM keys WHERE key=?),?,?,?, ?)""", (account.api_key, d["id"], d["ipv4"], d["date"], account.ttl))
-            db.commit()
+        else:
+            cursor.execute("""
+                UPDATE droplets SET date=?, ttl=? WHERE id=?""", (d["date"], account.ttl, d["id"]))
 
 def store_key(account):
     cursor.execute("""
         SELECT * FROM keys WHERE key=?""", (account.api_key,))
     if not cursor.fetchall():
         cursor.execute("""
-          INSERT INTO keys(key) VALUES(?)""", (account.api_key,))
-        db.commit()
+            INSERT INTO keys(key) VALUES(?)""", (account.api_key,))
         return 0
     else:
         return 1
 
-def provision(accounts):
+def provision(accounts): #TODO parallelize
+    cwd = os.getcwd()
+    os.chdir("terraform/")
+    subprocess.run(["terraform", "init"], check=False)
+    os.chdir(cwd)
     for a in accounts:
-        a.create_ssh_key()
         apply_terraform(a)
-    if a != []:
+    if accounts != []:
         print("Waiting for Droplets...")
-        time.sleep(15)
+        time.sleep(10)
     build_inventory(accounts)
     apply_ansible()
+    print_cyan("Storing Droplet data locally...\n")
     for a in accounts:
         store_droplets(a)
-    os.remove("ansible/inventory")
 
 def apply_terraform(account):
     cwd = os.getcwd()
     os.chdir("terraform/")
-    subprocess.run(["terraform", "init"], check=True)
     subprocess.run(["terraform", "workspace", "new", account.api_key], check=False)
-    subprocess.run(["terraform", "workspace", "select", account.api_key], check=True)
-    subprocess.run(["terraform", "apply", "-auto-approve", "-var=do_api_token=" + account.api_key, "-var=do_ssh_key=" + account.ssh_key_fingerprint], check=True)
-    output = subprocess.run(["terraform", "output"], encoding='utf-8', stdout=subprocess.PIPE, check=True)
+    subprocess.run(["terraform", "workspace", "select", account.api_key], check=False)
+    subprocess.run(["terraform", "apply", "-auto-approve", "-var=do_api_token=" + account.api_key, "-var=do_ssh_key=" + account.ssh_key_fingerprint], check=False)
+    output = subprocess.run(["terraform", "output"], encoding='utf-8', stdout=subprocess.PIPE, check=False)
     ttl = output.stdout.split('\n')[0].split(" ")[2]
     account.ttl = math.floor(float(ttl))
     os.chdir(cwd)
@@ -188,6 +227,7 @@ def apply_ansible():
     os.chdir("ansible/")
     subprocess.run(["ansible-playbook", "-i", "inventory", "site.yml"], check=False)
     os.chdir(cwd)
+    os.remove("ansible/inventory")
 
 def ls():
     cursor.execute("""
@@ -209,7 +249,7 @@ def ls():
             print("     with\033[96m {}\033[00m hours left.".format(int(time_left)))
         print()
 
-def prune():
+def prune(prune_keys=False): #optimize TODO
     print_green("Looking for expired resources...\n")
     cursor.execute("""
         SELECT key from keys;
@@ -233,12 +273,12 @@ def prune():
         if time.time() > (math.floor(float(d[3])) + (math.floor(float(d[2])) * 3600)):
             expired.append((d[0], d[1]))
         elif int(d[0]) not in active_droplets:
-            cursor.execute("""
-                SELECT key FROM keys WHERE key_id=?""",(d[4],))
-            key =  cursor.fetchone()
+            # cursor.execute("""
+            #     SELECT key FROM keys WHERE key_id=?""",(d[4],))
+            # key =  cursor.fetchone()
             try:
-                if DOAccount(api_key=key[0]).get_droplet(d[0])["id"] == "not_found":
-                    unreachable.append((d[0], d[1]))
+                # if DOAccount(api_key=key[0]).get_droplet(d[0])["id"] == "not_found":
+                unreachable.append((d[0], d[1]))
             except KeyError as e:
                 continue
 
@@ -250,61 +290,52 @@ def prune():
         print_red("Pruning these unreachable droplets:\n")
         for u in unreachable:
             print("\t{}, {}".format(u[0], u[1]))
-    if accounts != []:
+    if accounts != [] and prune_keys == True:
         print_red("Pruning these empty accounts:\n")
         for a in accounts:
             print("\t{}".format(a))
     if not expired == unreachable == accounts == []:
-        print_green("Does this look correct?")
-        print_green("\n (Only 'yes' will be accepted as confirmation): ")
-        answer = input("")
-        if answer == "yes":
-            for e in expired + unreachable:
-                cursor.execute("""
-                    DELETE FROM droplets WHERE id=?""", (e[0],))
-            for a in accounts:
-                cursor.execute("""
-                    DELETE FROM keys WHERE key=?""", (a,))
-                subprocess.run(["terraform", "workspace", "delete", a], check=False)
-            print_green("Done.\n")
+        if prune_keys == True:
+            print_green("Does this look correct?")
+            print_green("\n (Only 'yes' will be accepted as confirmation): ")
+            answer = input("")
+            if answer == "yes":
+                cwd = os.getcwd()
+                os.chdir("terraform/")
+                for a in accounts:
+                    cursor.execute("""
+                        DELETE FROM keys WHERE key=?""", (a,))
+                    subprocess.run(["terraform", "workspace", "delete", a], check=False)
+                os.chdir(cwd)
+        for e in expired + unreachable:
+            cursor.execute("""
+                DELETE FROM droplets WHERE id=?""", (e[0],))
+        print_green("Done.\n")
     else:
         print_red("Nothing found to prune.\n")
-    db.commit()
 
-def shutdown():
-    print_red("Destroy all droplets for all keys???\n")
-    print_red("(Only 'yes' will be accepted as confirmation): ")
-    answer = input("")
-    if answer == "yes":
-        cursor.execute("""
-            SELECT key FROM keys;
-        """)
-        keys = cursor.fetchall()
-        for k in keys:
-            api_headers={
-                "Content-Type":"application/json",
-                "Authorization":"Bearer " + k[0]
-            }
-            status_code = 0
-            while status_code != 204:
-                r = requests.delete(DOAccount("").api_endpoint + "droplets" + "?tag_name=doxmr", headers=api_headers)
-                status_code = r.status_code
-                if status_code == 204:
-                    print_red("Account shutdown: {}\n".format(k[0]))
+def shutdown(keys):
+    for k in keys:
+        acc = DOAccount(api_key=k)
+        status_code = 0
+        while status_code != 204:
+            r = requests.delete(acc.api_endpoint + "droplets" + "?tag_name=doxmr", headers=acc.api_headers)
+            status_code = r.status_code
 
 class DOAccount:
 
     def __init__(self, api_key, ssh_key="", ttl=1):
-        self.api_endpoint="https://api.digitalocean.com/v2/"
         self.api_key = api_key
         self.ssh_key = ssh_key
+        self.ttl = ttl
         if self.ssh_key != "":
             self.ssh_key_fingerprint = self.md5_fingerprint(self.ssh_key)
-        self.ttl = ttl
+        self.api_endpoint="https://api.digitalocean.com/v2/"
         self.api_headers={
             "Content-Type":"application/json",
             "Authorization":"Bearer " + self.api_key
         }
+        self.creation_epoch = self.get_creation_epoch()
 
     @staticmethod
     def md5_fingerprint(key):
@@ -314,18 +345,18 @@ class DOAccount:
 
     def create_ssh_key(self):
         r = requests.post(self.api_endpoint + "account/keys", headers=self.api_headers, data=json.dumps({ "name": self.api_key[:3],"public_key": self.ssh_key}))
-        try:
-            fingerprint = str(json.loads(r.text)['ssh_key']['fingerprint'])
-            print_green("ssh fingerprint: {}\n".format(fingerprint))
-        except KeyError:
-            print_red("ssh key already exists!\n")
 
-    def get_droplet(self, droplet_id):
-        status_code = 0
-        while status_code not in [200,404]:
-            r = requests.get(self.api_endpoint + "droplets/" + str(droplet_id), headers=self.api_headers)
-            status_code = r.status_code
-        return json.loads(r.text)
+    def create_vpc(self):
+        payload = """
+        {
+            "name": "doxmr-vpc",
+            "region": "sfo2",
+            "ip_range": "10.10.10.0/24",
+            "default": true
+        }
+        """
+        r = requests.post(self.api_endpoint + "vpcs", headers=self.api_headers, data=payload)
+
 
     def get_ip(self, droplet_id):
         network = self.get_droplet(droplet_id)['droplet']['networks']['v4']
@@ -333,8 +364,19 @@ class DOAccount:
             if str(network[i]['type']) == 'public':
                 return str(network[i]['ip_address'])
 
-    #return [email, status, ratelimit]
+    def get_creation_epoch(self):
+        """return account creation in unix time estimated by billing history"""
+        status_code = 0
+        while status_code != 200:
+            r = requests.get(self.api_endpoint + "customers/my/billing_history", headers=self.api_headers)
+            status_code = r.status_code
+        history = json.loads(r.text)["billing_history"]
+        for i in history:
+            if i["type"] == "Credit":
+                return str(int(datetime.datetime.strptime(str(i['date']), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc).timestamp()))
+
     def get_status(self):
+        """return [email, status, ratelimit]"""
         status_code = 0
         while status_code != 200:
             r = requests.get(self.api_endpoint + "account/", headers=self.api_headers)
@@ -350,17 +392,29 @@ class DOAccount:
         body = json.loads(r.text)
         return abs(float(body["month_to_date_balance"]))
 
-    #return {"id": id, "ipv4": 0.0.0.0, "date": unix_time}
-    def get_active_droplets(self):
+    def get_droplet(self, droplet_id):
         status_code = 0
-        while status_code != 200:
+        while status_code not in [200,404,422]:
+            r = requests.get(self.api_endpoint + "droplets/" + str(droplet_id), headers=self.api_headers)
+            status_code = r.status_code
+            if status_code == 422: #locked
+                return {"id": "not_found"}
+        return json.loads(r.text)
+
+    def get_active_droplets(self):
+        """return {"id": id, "ipv4": 0.0.0.0, "date": get_creation_epoch()}"""
+        status_code = 0
+        while status_code not in [200, 422]:
             r = requests.get(self.api_endpoint + "droplets", headers=self.api_headers)
             status_code = r.status_code
+            if status_code == 422: #locked
+                return []
         droplets = []
         for d in json.loads(r.text)['droplets']:
             date =  str(int(datetime.datetime.strptime(str(d['created_at']), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc).timestamp()))
-            droplets.append({"id": d['id'], "ipv4": self.get_ip(d['id']), "date": date})
+            droplets.append({"id": d['id'], "ipv4": self.get_ip(d['id']), "date": self.creation_epoch})
         return droplets
 
 if __name__ == "__main__":
     main()
+

@@ -1,4 +1,8 @@
-- name: apply compute configuration
+- name: template in selfdestruct script
   hosts: compute
   roles:
-    - compute
+    - init
+# - name: your configuration here
+#   hosts: compute
+#   roles:
+#     - ...
